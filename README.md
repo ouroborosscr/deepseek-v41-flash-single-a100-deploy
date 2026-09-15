@@ -20,6 +20,20 @@ The deployment was completed and validated on September 15, 2026:
 
 This proves that a **tiered single-card deployment is feasible**. It does not mean the model fits in 80GB VRAM. The normal full-resident vLLM path is not a single-A100 configuration: the current vLLM recipe budgets roughly 614GB of aggregate VRAM.
 
+## Precision and Feature Scope
+
+This is a **no-additional-low-bit-quantization deployment**: it does not apply a
+second 2-bit/3-bit/4-bit compression pass, prune experts, or zero the Engram.
+The released mixed-precision weights are retained as MXFP4 routed experts,
+FP8 Engram bytes, Q8_0 attention/dense tensors, BF16 embeddings, and F32 norms.
+Therefore, “no quantization” here means no extra low-bit quantization beyond the
+released checkpoint representation; it does not mean every tensor is FP16/BF16.
+
+To make the single-card text runtime fit, two model features are deliberately
+excluded from the converted GGUF: the vision encoder/aligner and the DSpark
+speculative-draft head. The resulting service is a high-fidelity text model, not
+the complete multimodal + DSpark release.
+
 ## Why It Works
 
 DeepSeek-V4.1-Flash has a 552B backbone, about 196.6B Engram parameters, and activates roughly 8B parameters per prompt token and 16B per output token. Activation sparsity reduces compute, but all experts still need a storage tier.
@@ -175,8 +189,16 @@ Do not use `chat_template_kwargs.thinking=false` with the pinned fork: it leaves
 ## Limitations
 
 - **Text only:** the tested converter excludes the vision encoder and aligner.
+- **No DSpark draft head:** the 2,398 MTP/DSpark tensors are skipped; normal
+  autoregressive text generation remains available.
 - **Experimental runtime:** this is not upstream llama.cpp or a standard vLLM path.
-- **8K initial context:** the model supports up to 1M tokens, but that was not validated on this single-card service.
+- **Context is workload- and allocator-dependent:** the public service stays at
+  8,192 tokens as the conservative profile. In isolated tests, 786,432 tokens
+  completed a short end-to-end generation, while 849,920 tokens could initialize
+  but OOMed on the first generation. A 1,048,576-token configuration failed during
+  compute-buffer reservation and needed an additional ~9.77 GiB on the 80GB card.
+  The model advertises up to 1M, but this single-card deployment should be described
+  as **786K experimentally service-validated**, not as a 1M production guarantee.
 - **Single request slot:** concurrency can increase expert-cache churn and needs workload-specific testing.
 - **120 GiB page-locked RAM:** verify the log says `PINNED`; pageable fallback is slower.
 - **No DSpark:** the 5090 study found neutral-to-negative results for mixed content under expert streaming.

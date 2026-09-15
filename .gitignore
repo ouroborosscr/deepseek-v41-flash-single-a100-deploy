@@ -1,0 +1,10 @@
+.env
+*.log
+*.status
+*.pid
+__pycache__/
+.venv/
+build*/
+models/
+gguf/
+vendor/llama.cpp/

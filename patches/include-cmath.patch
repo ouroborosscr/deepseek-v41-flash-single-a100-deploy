@@ -1,0 +1,6 @@
+--- a/src/llama-moe-stream.cpp
++++ b/src/llama-moe-stream.cpp
+@@
+ #include <algorithm>
++#include <cmath>
+ #include <cinttypes>

@@ -60,6 +60,11 @@ gpu_compute_apps() {
     --format=csv,noheader 2>/dev/null || true
 }
 
+gpu_has_pid() {
+  local needle="$1"
+  gpu_compute_apps | awk -F',' -v needle="$needle" '{gsub(/[[:space:]]/, "", $1); if ($1 == needle) found=1} END {exit(found ? 0 : 1)}'
+}
+
 health_ok() {
   curl -fsS --max-time 3 "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1
 }
@@ -87,22 +92,35 @@ stop_unlocked() {
   fi
 
   # NVML can report the old allocation for a few seconds after the process has
-  # exited.  Wait for the driver-visible allocation to disappear, but do not
-  # wait forever if another user's compute process takes the GPU in the meantime.
-  local used apps
+  # exited. Track the original service PIDs explicitly so this stale record is
+  # not mistaken for another user's job.
+  local used apps stale
   for _ in $(seq 1 60); do
     used=$(gpu_memory)
     apps=$(gpu_compute_apps)
+    stale=0
+    for pid in $pids; do
+      if gpu_has_pid "$pid"; then stale=1; break; fi
+    done
+    if ((stale)); then
+      sleep 1
+      continue
+    fi
     if [[ -z "$apps" && "$used" =~ ^[0-9]+$ && "$used" -le 1024 ]]; then
       break
     fi
-    if [[ -n "$apps" && "$apps" != *"llama-server"* ]]; then
-      log "GPU ${GPU} now has another compute process; not waiting on its memory"
+    if [[ -n "$apps" ]]; then
+      log "DeepSeek stopped; GPU ${GPU} is now used by another compute process"
       break
     fi
     sleep 1
   done
-  log "GPU service stopped; port $PORT is free; GPU ${GPU} reports $(gpu_memory) MiB used"
+  apps=$(gpu_compute_apps)
+  if [[ -n "$apps" ]]; then
+    log "GPU service stopped; port $PORT is free; GPU ${GPU} reports $(gpu_memory) MiB used by other work"
+  else
+    log "GPU service stopped; port $PORT is free; GPU ${GPU} reports $(gpu_memory) MiB used"
+  fi
 }
 
 start_unlocked() {

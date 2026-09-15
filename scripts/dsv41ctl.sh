@@ -81,7 +81,28 @@ start_unlocked() {
     log "restarting existing service to apply context=$CONTEXT"
     stop_unlocked
   elif session_exists; then
-    log "removing stale/unhealthy tmux session $SESSION"
+    # A 786K cold load takes about a minute.  Do not mistake that expected
+    # 503/loading window for a dead session when another user runs `start`.
+    local existing_pid
+    existing_pid=$(server_pid)
+    if [[ -n "$existing_pid" ]]; then
+      log "service is already starting; waiting for health"
+      for _ in $(seq 1 180); do
+        if health_ok; then
+          log "ready: http://127.0.0.1:${PORT}/health"
+          return 0
+        fi
+        kill -0 "$existing_pid" 2>/dev/null || break
+        sleep 2
+      done
+      if health_ok; then
+        log "ready: http://127.0.0.1:${PORT}/health"
+        return 0
+      fi
+      log "existing server exited or failed health; removing stale session"
+    else
+      log "removing stale tmux session $SESSION"
+    fi
     tmux_cmd kill-session -t "$SESSION"
   fi
 

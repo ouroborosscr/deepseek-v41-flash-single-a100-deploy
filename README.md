@@ -202,7 +202,9 @@ On the reference server, the controller is installed at
 `start` uses the resident maximum that was validated for a short generation:
 `GPU 2`, `0.0.0.0:7888`, one slot, and `786,432` context tokens. `stop` kills
 the shared tmux session and releases the A100 process so the GPU is available
-to other workloads. The control socket is group-only (`sharedgroup`, mode
+to other workloads. The controller waits for the CUDA process and NVML memory
+report to drain before printing success; `nvidia-smi` sampled immediately after
+a manual kill may otherwise show stale allocation for a few seconds. The control socket is group-only (`sharedgroup`, mode
 `0660`), and an `flock` prevents concurrent start/stop races. This is an
 all-members-of-`sharedgroup` control plane; users outside that group are not
 granted permission to stop another user's GPU process.

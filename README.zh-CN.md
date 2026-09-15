@@ -199,7 +199,9 @@ curl http://127.0.0.1:7888/v1/chat/completions \
 
 `start` 使用已经完成短请求验证的常驻最大配置：`GPU 2`、`0.0.0.0:7888`、
 单 slot、`786,432` context tokens。`stop` 会停止共享 tmux 会话并释放 A100
-上的模型进程，空闲时 GPU 可让给其他任务。控制 socket 仅对 `sharedgroup`
+上的模型进程，空闲时 GPU 可让给其他任务。控制脚本会等待 CUDA 进程退出并确认
+NVML 显存占用回落后再打印成功；如果手动 kill 后立刻执行 `nvidia-smi`，驱动可能
+在几秒内仍显示旧分配。控制 socket 仅对 `sharedgroup`
 开放（权限 `0660`），并用 `flock` 防止多人同时开关造成竞态。因此这里的“所有用户”
 指服务器上属于 `sharedgroup` 的用户；不在该组的用户不会被授予停止他人 GPU 进程的权限。
 

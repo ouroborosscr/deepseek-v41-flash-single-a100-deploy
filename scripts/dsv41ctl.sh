@@ -42,7 +42,22 @@ session_exists() {
 }
 
 server_pid() {
-  pgrep -f -- "$BASE/llama\.cpp/.*/bin/llama-server .*--port[[:space:]]+$PORT" | head -1 || true
+  server_pids | head -1 || true
+}
+
+server_pids() {
+  ps -eo pid=,args= | awk -v base="$BASE" -v port="$PORT" '
+    index($0, base "/llama.cpp/") && /llama-server/ && $0 ~ ("--port[[:space:]]+" port "([[:space:]]|$)") {print $1}'
+}
+
+gpu_memory() {
+  nvidia-smi -i "$GPU" --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null \
+    | tr -d ' ' | head -1 || true
+}
+
+gpu_compute_apps() {
+  nvidia-smi -i "$GPU" --query-compute-apps=pid,process_name,used_gpu_memory \
+    --format=csv,noheader 2>/dev/null || true
 }
 
 health_ok() {
@@ -50,6 +65,8 @@ health_ok() {
 }
 
 stop_unlocked() {
+  local pids pid
+  pids=$(server_pids)
   if session_exists; then
     log "stopping tmux session $SESSION"
     tmux_cmd kill-session -t "$SESSION"
@@ -57,19 +74,35 @@ stop_unlocked() {
 
   # This catches a process that outlived tmux.  Match the deployment binary and
   # port only; do not kill unrelated llama-server instances.
-  local pid
-  pid=$(server_pid)
-  if [[ -n "$pid" ]]; then
-    kill "$pid" 2>/dev/null || true
-    for _ in $(seq 1 30); do
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 1
-    done
-    kill -9 "$pid" 2>/dev/null || true
-  fi
+  for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+  for _ in $(seq 1 30); do
+    [[ -z "$(server_pids)" ]] && break
+    sleep 1
+  done
+  for pid in $(server_pids); do kill -9 "$pid" 2>/dev/null || true; done
 
   rm -f "$BASE/logs/server-${PORT}.status"
-  log "GPU service stopped; port $PORT is free"
+  if [[ -n "$(server_pids)" ]]; then
+    die "DeepSeek process did not exit; inspect with ps/nvidia-smi"
+  fi
+
+  # NVML can report the old allocation for a few seconds after the process has
+  # exited.  Wait for the driver-visible allocation to disappear, but do not
+  # wait forever if another user's compute process takes the GPU in the meantime.
+  local used apps
+  for _ in $(seq 1 60); do
+    used=$(gpu_memory)
+    apps=$(gpu_compute_apps)
+    if [[ -z "$apps" && "$used" =~ ^[0-9]+$ && "$used" -le 1024 ]]; then
+      break
+    fi
+    if [[ -n "$apps" && "$apps" != *"llama-server"* ]]; then
+      log "GPU ${GPU} now has another compute process; not waiting on its memory"
+      break
+    fi
+    sleep 1
+  done
+  log "GPU service stopped; port $PORT is free; GPU ${GPU} reports $(gpu_memory) MiB used"
 }
 
 start_unlocked() {

@@ -11,7 +11,7 @@
 本方案于 2026 年 9 月 15 日部署并验证完成：
 
 - 单张 A100-SXM4-80GB；
-- 1 TiB 系统内存；
+- 1 TiB 系统内存（建议最低 768 GiB）；
 - 60 GiB 显存专家缓存；
 - 120 GiB pinned host expert cache；
 - 初始服务上下文 8,192 tokens；

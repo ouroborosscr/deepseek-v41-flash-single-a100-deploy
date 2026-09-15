@@ -11,7 +11,7 @@ This repository contains deployment scripts and measured results. It does not co
 The deployment was completed and validated on September 15, 2026:
 
 - one A100-SXM4-80GB, fixed to a single physical GPU;
-- 1 TiB system RAM;
+- 1 TiB system RAM (768 GiB recommended minimum);
 - 60 GiB VRAM expert cache;
 - 120 GiB pinned host expert cache;
 - 8,192-token initial serving context;

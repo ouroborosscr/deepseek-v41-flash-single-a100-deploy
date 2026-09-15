@@ -12,7 +12,10 @@ MODEL_ALIAS=${MODEL_ALIAS:-DeepSeek-V4.1-Flash}
 GPU_INDEX=${GPU_INDEX:-0}
 HOST=${HOST:-127.0.0.1}
 PORT=${PORT:-7888}
-CONTEXT_SIZE=${CONTEXT_SIZE:-8192}
+# 786,432 completed an end-to-end short-generation test on the reference A100.
+# Use a smaller value if your workload has long prompts, multiple slots, or less
+# free VRAM than the reference host.
+CONTEXT_SIZE=${CONTEXT_SIZE:-786432}
 PARALLEL=${PARALLEL:-1}
 CPU_THREADS=${CPU_THREADS:-32}
 VRAM_CACHE_GIB=${VRAM_CACHE_GIB:-60}

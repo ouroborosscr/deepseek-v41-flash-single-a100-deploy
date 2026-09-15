@@ -184,6 +184,28 @@ curl http://127.0.0.1:7888/v1/chat/completions \
 
 不要在固定实验分支上使用 `chat_template_kwargs.thinking=false`：该路径会在正文中留下孤立的 `</think>`。详见[故障排查](docs/troubleshooting.zh-CN.md)。
 
+## 共享一键开关
+
+参考服务器已安装控制脚本：
+`/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh`。服务器上属于
+`sharedgroup` 的用户无需 `sudo`，都可以执行：
+
+```bash
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh start
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh status
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh stop
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh restart
+```
+
+`start` 使用已经完成短请求验证的常驻最大配置：`GPU 2`、`0.0.0.0:7888`、
+单 slot、`786,432` context tokens。`stop` 会停止共享 tmux 会话并释放 A100
+上的模型进程，空闲时 GPU 可让给其他任务。控制 socket 仅对 `sharedgroup`
+开放（权限 `0660`），并用 `flock` 防止多人同时开关造成竞态。因此这里的“所有用户”
+指服务器上属于 `sharedgroup` 的用户；不在该组的用户不会被授予停止他人 GPU 进程的权限。
+
+`786,432` 是实验性可服务配置，不是任意超长 prompt 的生产保证。当前公网监听没有
+API key；如果要暴露给不完全可信的网络，应先配置认证或使用防火墙限制访问。
+
 ## 当前限制
 
 - **仅文本：** 当前转换器排除了视觉编码器和 aligner。

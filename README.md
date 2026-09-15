@@ -186,6 +186,32 @@ Omit `reasoning_effort: "none"` to use the model's reasoning path. The tested pa
 
 Do not use `chat_template_kwargs.thinking=false` with the pinned fork: it leaves an orphan `</think>` marker in content. See [Troubleshooting](docs/troubleshooting.zh-CN.md).
 
+## Shared One-Command Power Control
+
+On the reference server, the controller is installed at
+`/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh`. Members of the server's
+`sharedgroup` group can use it without `sudo`:
+
+```bash
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh start
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh status
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh stop
+/date/sunchengrui/deepseek-v41-flash/dsv41ctl.sh restart
+```
+
+`start` uses the resident maximum that was validated for a short generation:
+`GPU 2`, `0.0.0.0:7888`, one slot, and `786,432` context tokens. `stop` kills
+the shared tmux session and releases the A100 process so the GPU is available
+to other workloads. The control socket is group-only (`sharedgroup`, mode
+`0660`), and an `flock` prevents concurrent start/stop races. This is an
+all-members-of-`sharedgroup` control plane; users outside that group are not
+granted permission to stop another user's GPU process.
+
+The `786,432` setting is an experimental service profile, not a production
+guarantee for arbitrary long prompts. The public listener remains unauthenticated
+in this deployment, so place it behind a trusted network or add an API key before
+exposing it beyond the intended users.
+
 ## Limitations
 
 - **Text only:** the tested converter excludes the vision encoder and aligner.
